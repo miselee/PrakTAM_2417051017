@@ -7,6 +7,7 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -19,13 +20,22 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.outlined.Edit
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
@@ -47,106 +57,132 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 fun DaftarPengeluaranScreen() {
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .verticalScroll(state = rememberScrollState())
-            .padding(all = 24.dp)
-    ) {
-
-        Text(
-            text="Pengeluaran",
-            style = MaterialTheme.typography.headlineLarge
-        )
-
-        Spacer(modifier = Modifier.height(10.dp))
-
-        HeaderColumn(KategoriSource.dummyKategori[0])
-
-        Spacer(modifier = Modifier.height(5.dp))
-
+    Box(){
         Column(
             modifier = Modifier
-                .weight(1f)
+                .fillMaxSize()
                 .verticalScroll(state = rememberScrollState())
-        ){
-            KategoriSource.dummyKategori.forEach { kategori ->
-                DetailScreen(kategori = kategori)
-                Spacer(modifier = Modifier.height(24.dp))
+                .padding(all = 24.dp)
+        ) {
+            Text(
+                text="Pengeluaran",
+                style = MaterialTheme.typography.headlineLarge
+            )
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            val groupedData = KategoriSource.dummyKategori.groupBy { it.Tanggal }
+
+            Spacer(modifier = Modifier.height(5.dp))
+
+            groupedData.forEach { (tanggal, listKategori) ->
+                HeaderColumn(
+                    tanggal = tanggal,
+                    total = 0,
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                listKategori.forEach { kategori ->
+                    DetailScreen(kategori = kategori,box = Modifier)
+                    Spacer(modifier = Modifier.height(16.dp))
+                }
+
+                Spacer(modifier = Modifier.height(20.dp))
             }
         }
+
         Button(
             onClick = { },
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier
+                .fillMaxWidth()
+                .align(Alignment.BottomCenter)
+                .padding(16.dp)
         ){
             Text("Tambah")
         }
     }
-
 }
 
 @Composable
-fun HeaderColumn(kategori: Kategori){
+fun HeaderColumn(tanggal: String, total: Int){
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp),
-        horizontalArrangement = Arrangement.SpaceBetween // ni buat biar pinggirmya sama
+        horizontalArrangement = Arrangement.SpaceBetween
     ){
         Text(
-            text = kategori.Tanggal,
+            text = tanggal,
             style = MaterialTheme.typography.titleMedium
         )
 
         Text(
-            text ="Pengeluaran: Rp ${kategori.TotalPengeluaran}" ,
+            text = "Pengeluaran: Rp $total",
             style = MaterialTheme.typography.titleMedium
         )
     }
 }
 
 @Composable
-fun DetailScreen(kategori: Kategori){
+fun DetailScreen(
+    kategori: Kategori,
+    box: Modifier = Modifier
+) {
+    var isEdited by remember { mutableStateOf(false) }
+
     Column(
-        modifier = Modifier
-            .fillMaxSize()
+        modifier = box
+            .fillMaxWidth()
             .border(0.5.dp, Color.Gray, shape = RoundedCornerShape(8.dp))
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 6.dp),
-            horizontalArrangement = Arrangement.spacedBy(10.dp)
-        ){
-            Image(
-                painter = painterResource(id = kategori.imageRes),
-                kategori.nama,
+        Box {
+            Row(
                 modifier = Modifier
-                    .width(60.dp)
-                    .height(60.dp),
-                contentScale = ContentScale.Crop
-            )
-
-            Column(
-                modifier = Modifier
-                    .padding(vertical = 10.dp)
-            ){
-                Text(
-                    text = kategori.nama,
-                    style = MaterialTheme.typography.bodyLarge
+                    .fillMaxWidth()
+                    .padding(horizontal = 6.dp),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Image(
+                    painter = painterResource(id = kategori.imageRes),
+                    contentDescription = kategori.nama,
+                    modifier = Modifier
+                        .width(60.dp)
+                        .height(60.dp),
+                    contentScale = ContentScale.Crop
                 )
 
-                Text(
-                    text ="-Rp ${kategori.Pengeluaran}" ,
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = Color.Red
-                )
+                Column(
+                    modifier = Modifier.padding(vertical = 10.dp)
+                ) {
+                    Text(
+                        text = kategori.nama,
+                        style = MaterialTheme.typography.bodyLarge
+                    )
+
+                    Text(
+                        text = "-Rp ${kategori.Pengeluaran}",
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = Color.Red
+                    )
+                }
             }
 
+            IconButton(
+                onClick = { isEdited = !isEdited },
+                modifier = Modifier
+                    .align(Alignment.CenterEnd)
+            ) {
+                Icon(
+                    imageVector = if (isEdited) Icons.Filled.Edit else Icons.Outlined.Edit,
+                    contentDescription = "Edited Icon",
+                    tint = if (isEdited) Color.Black else Color.Gray
+                )
+            }
         }
-
     }
 }
+
 
 @Preview(showBackground = true)
 @Composable
