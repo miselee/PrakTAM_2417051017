@@ -7,3 +7,12 @@ data class Kategori(
     val Tanggal: String,
     val imageRes: Int,
 )
+
+data class Anggaran(
+    val nama: String,
+    val total: Int,
+    val sisa: Int,
+    val Bulan : String,
+    val imageRes: Int,
+)
+
