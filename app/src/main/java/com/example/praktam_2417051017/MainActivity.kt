@@ -50,13 +50,13 @@ fun DaftarPengeluaranScreen() {
             item {
                 Text(
                     text = "Pengeluaran",
-                    style = MaterialTheme.typography.headlineLarge,
+                    style = MaterialTheme.typography.titleLarge,
                     modifier = Modifier.padding(16.dp, 16.dp, 16.dp, 5.dp)
                 )
 
                 Text(
                     text = "Anggaran",
-                    style = MaterialTheme.typography.titleSmall,
+                    style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
                     modifier = Modifier.padding(16.dp, 6.dp)
                 )
@@ -117,7 +117,10 @@ fun AnggaranItem(anggaran: Anggaran) {
     Card(
         modifier = Modifier.width(160.dp),
         shape = RoundedCornerShape(12.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surface
+        )
     ) {
         Column {
             Image(
@@ -125,19 +128,18 @@ fun AnggaranItem(anggaran: Anggaran) {
                 contentDescription = anggaran.nama,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(100.dp),
-                contentScale = ContentScale.Crop
+                    .height(80.dp),
+                contentScale = ContentScale.Inside
             )
             Column(modifier = Modifier.padding(8.dp)) {
                 Text(
                     text = anggaran.nama,
-                    style = MaterialTheme.typography.titleSmall,
+                    style = MaterialTheme.typography.bodyLarge,
                     fontWeight = FontWeight.Bold
                 )
                 Text(
                     text = anggaran.Bulan,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.primary
+                    style = MaterialTheme.typography.bodyMedium
                 )
                 Text(
                     text = "Rp ${anggaran.sisa} / Rp ${anggaran.total}",
@@ -209,7 +211,7 @@ fun DetailScreen(
                     Text(
                         text = "-Rp ${kategori.Pengeluaran}",
                         style = MaterialTheme.typography.bodyLarge,
-                        color = Color.Red
+                        color = MaterialTheme.colorScheme.primary
                     )
                 }
             }
