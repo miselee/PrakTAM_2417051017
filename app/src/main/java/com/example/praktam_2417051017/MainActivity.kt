@@ -3,7 +3,6 @@ package com.example.praktam_2417051017
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -29,24 +28,77 @@ import model.KategoriSource
 import com.example.praktam_2417051017.ui.theme.PrakTAM_2417051017Theme
 import model.Anggaran
 import model.Kategori
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.rememberNavController
+import androidx.navigation.NavController
+import androidx.navigation.NavHostController
+import androidx.compose.foundation.clickable
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import android.net.Uri
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
+
         setContent {
-            PrakTAM_2417051017Theme {
-                DaftarPengeluaranScreen()
+            val navController = rememberNavController()
+            AppNavigation(navController)
+        }
+    }
+}
+
+@Composable
+fun AppNavigation(navController: NavHostController) {
+
+    val daftarKategori = remember {
+        mutableStateListOf<Kategori>().apply {
+            addAll(KategoriSource.dummyKategori)
+        }
+    }
+
+    NavHost(
+        navController = navController,
+        startDestination = "home",
+        modifier = Modifier.fillMaxSize()
+    ) {
+
+        composable("home") {
+            DaftarPengeluaranScreen(navController, daftarKategori)
+        }
+
+        composable("detail/{nama}") { backStackEntry ->
+
+            val nama = backStackEntry.arguments?.getString("nama")
+
+            val item = daftarKategori.find { it.nama == nama }
+
+            if (item != null) {
+                DetailScreen(item, navController, true)
             }
         }
     }
 }
 
 @Composable
-fun DaftarPengeluaranScreen() {
+fun DaftarPengeluaranScreen(
+    navController: NavController,
+    daftarKategori: MutableList<Kategori>
+) {
+    val coroutineScope = rememberCoroutineScope()
+    val snackbarHostState = remember { SnackbarHostState() }
     Box {
-        LazyColumn{
-
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(bottom = 90.dp)
+        ){
             item {
                 Text(
                     text = "Pengeluaran",
@@ -73,7 +125,7 @@ fun DaftarPengeluaranScreen() {
                 Spacer(modifier = Modifier.height(10.dp))
             }
 
-            val groupedData = KategoriSource.dummyKategori.groupBy { it.Tanggal }
+            val groupedData = daftarKategori.groupBy { it.Tanggal }
 
             groupedData.forEach { (tanggal, listKategori) ->
                 item {
@@ -85,7 +137,15 @@ fun DaftarPengeluaranScreen() {
                 }
 
                 items(listKategori) { kategori ->
-                    DetailScreen(kategori = kategori)
+                    KategoriItem(
+                        kategori,
+                        navController,
+                        onShowSnackbar = { message ->
+                            coroutineScope.launch {
+                                snackbarHostState.showSnackbar(message)
+                            }
+                        }
+                    )
                     Spacer(modifier = Modifier.height(16.dp))
                 }
 
@@ -102,15 +162,14 @@ fun DaftarPengeluaranScreen() {
                 .background(Color.White)
                 .padding(16.dp)
         ) {
-            Button(
-                onClick = { },
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text("Tambah")
-            }
+
+            SnackbarHost(
+                hostState = snackbarHostState
+            )
         }
     }
 }
+
 
 @Composable
 fun AnggaranItem(anggaran: Anggaran) {
@@ -172,61 +231,223 @@ fun HeaderColumn(tanggal: String, total: Int) {
 }
 
 @Composable
-fun DetailScreen(
+fun KategoriItem(
     kategori: Kategori,
-    box: Modifier = Modifier
+    navController: NavController,
+    onShowSnackbar: (String) -> Unit
 ) {
     var isEdited by remember { mutableStateOf(false) }
+    var isLoading by remember { mutableStateOf(false) }
 
-    Column(
-        modifier = box
+    val coroutineScope = rememberCoroutineScope()
+
+    Card(
+        modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 20.dp)
-            .border(0.5.dp, Color.Gray, shape = RoundedCornerShape(8.dp))
+            .padding(horizontal = 16.dp),
+        shape = RoundedCornerShape(12.dp)
     ) {
+
         Box {
             Row(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 10.dp),
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    .padding(12.dp)
+                    .clickable {
+                        navController.navigate("detail/${kategori.nama}")
+                    },
+                verticalAlignment = Alignment.CenterVertically
             ) {
+
                 Image(
                     painter = painterResource(id = kategori.imageRes),
                     contentDescription = kategori.nama,
-                    modifier = Modifier
-                        .width(60.dp)
-                        .height(60.dp),
-                    contentScale = ContentScale.Crop
+                    modifier = Modifier.size(60.dp)
                 )
 
-                Column(
-                    modifier = Modifier.padding(vertical = 10.dp)
+                Spacer(modifier = Modifier.width(12.dp))
+
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(kategori.nama)
+                    Text("-Rp ${kategori.Pengeluaran}")
+                }
+
+                IconButton(
+                    onClick = {
+                        coroutineScope.launch {
+                            isLoading = true
+                            delay(1000)
+
+                            isEdited = !isEdited
+
+                            onShowSnackbar(
+                                if (isEdited)
+                                    "Mode edit ${kategori.nama} aktif"
+                                else
+                                    "Mode edit dimatikan"
+                            )
+
+                            isLoading = false
+                        }
+                    }
                 ) {
-                    Text(
-                        text = kategori.nama,
-                        style = MaterialTheme.typography.bodyLarge
+                    if (isLoading) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(18.dp),
+                            strokeWidth = 2.dp
+                        )
+                    } else {
+                        Icon(
+                            imageVector = if (isEdited)
+                                Icons.Filled.Edit
+                            else
+                                Icons.Outlined.Edit,
+                            contentDescription = "Edit"
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun DetailScreen(
+    kategori: Kategori,
+    navController: NavController,
+    isFullScreen: Boolean = false
+) {
+    var isLoading by remember { mutableStateOf(false) }
+    var isEdited by remember { mutableStateOf(false) }
+
+    val coroutineScope = rememberCoroutineScope()
+    val snackbarHostState = remember { SnackbarHostState() }
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 20.dp)
+    ) {
+
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(8.dp)
+        ) {
+
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp)
+            ) {
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+
+                    Image(
+                        painter = painterResource(id = kategori.imageRes),
+                        contentDescription = kategori.nama,
+                        modifier = Modifier
+                            .width(60.dp)
+                            .height(60.dp),
+                        contentScale = ContentScale.Crop
                     )
 
-                    Text(
-                        text = "-Rp ${kategori.Pengeluaran}",
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.primary
-                    )
+                    Column(
+                        modifier = Modifier.weight(1f)
+                    ) {
+
+                        Text(
+                            text = kategori.nama,
+                            style = MaterialTheme.typography.bodyLarge
+                        )
+
+                        Text(
+                            text = "-Rp ${kategori.Pengeluaran}",
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+
+                    IconButton(
+                        onClick = {
+                            coroutineScope.launch {
+                                isLoading = true
+                                delay(1500)
+
+                                isEdited = !isEdited
+
+                                snackbarHostState.showSnackbar(
+                                    if (isEdited)
+                                        "Mode edit aktif untuk ${kategori.nama}"
+                                    else
+                                        "Mode edit dimatikan"
+                                )
+
+                                isLoading = false
+                            }
+                        }
+                    ) {
+                        Icon(
+                            imageVector = if (isEdited)
+                                Icons.Filled.Edit
+                            else
+                                Icons.Outlined.Edit,
+                            contentDescription = "Edit Icon",
+                            tint = if (isEdited) Color.Black else Color.Gray
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    Button(
+                        onClick = {
+                            coroutineScope.launch {
+                                isLoading = true
+                                delay(1500)
+
+                                snackbarHostState.showSnackbar(
+                                    "Pengeluaran ${kategori.nama} berhasil dicatat!"
+                                )
+
+                                isLoading = false
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        enabled = !isLoading
+                    ) {
+                        if (isLoading) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(20.dp),
+                                strokeWidth = 2.dp
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Menyimpan...")
+                        } else {
+                            Text("Simpan Pengeluaran")
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    if (isFullScreen) {
+                        OutlinedButton(
+                            onClick = {
+                                navController.popBackStack()
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("Kembali")
+                        }
+                    }
                 }
             }
 
-            IconButton(
-                onClick = { isEdited = !isEdited },
-                modifier = Modifier.align(Alignment.CenterEnd)
-            ) {
-                Icon(
-                    imageVector = if (isEdited) Icons.Filled.Edit else Icons.Outlined.Edit,
-                    contentDescription = "Edited Icon",
-                    tint = if (isEdited) Color.Black else Color.Gray
-                )
-            }
         }
+        SnackbarHost(
+            hostState = snackbarHostState,
+            modifier = Modifier.align(Alignment.BottomCenter)
+        )
     }
 }
 
@@ -234,6 +455,18 @@ fun DetailScreen(
 @Composable
 fun DaftarAnggaranScreenPreview() {
     PrakTAM_2417051017Theme {
-        DaftarPengeluaranScreen()
+
+        val navController = rememberNavController()
+
+        val daftarKategori = remember {
+            mutableStateListOf<Kategori>().apply {
+                addAll(KategoriSource.dummyKategori)
+            }
+        }
+
+        DaftarPengeluaranScreen(
+            navController,
+            daftarKategori
+        )
     }
 }
