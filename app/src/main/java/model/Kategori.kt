@@ -1,18 +1,21 @@
-package model
+package com.example.praktam_2417051017.model
+
+import com.google.gson.annotations.SerializedName
 
 data class Kategori(
-    val nama: String,
-    val total: Int,
-    val Pengeluaran: Int,
-    val Tanggal: String,
-    val imageRes: Int,
-)
 
-data class Anggaran(
+    @SerializedName("nama")
     val nama: String,
-    val total: Int,
-    val sisa: Int,
-    val Bulan : String,
-    val imageRes: Int,
-)
 
+    @SerializedName("total")
+    val total: Int,
+
+    @SerializedName("pengeluaran")
+    val pengeluaran: Int,
+
+    @SerializedName("tanggal")
+    val tanggal: String,
+
+    @SerializedName("image_url")
+    val imageUrl: String
+)

@@ -1,48 +1,45 @@
 package com.example.praktam_2417051017
 
+import coil.compose.AsyncImage
 import android.os.Bundle
+import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.*
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.outlined.Edit
+import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import androidx.compose.foundation.shape.RoundedCornerShape
-import model.KategoriSource
-import com.example.praktam_2417051017.ui.theme.PrakTAM_2417051017Theme
-import model.Anggaran
-import model.Kategori
+import androidx.navigation.NavController
+import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
-import androidx.navigation.NavController
-import androidx.navigation.NavHostController
-import androidx.compose.foundation.clickable
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.SnackbarHost
-import androidx.compose.material3.SnackbarHostState
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
+import com.example.praktam_2417051017.model.Kategori
+import com.example.praktam_2417051017.ui.theme.PrakTAM_2417051017Theme
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import android.net.Uri
+import com.example.praktam_2417051017.network.RetrofitClient
+import model.Anggaran
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -58,11 +55,7 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun AppNavigation(navController: NavHostController) {
 
-    val daftarKategori = remember {
-        mutableStateListOf<Kategori>().apply {
-            addAll(KategoriSource.dummyKategori)
-        }
-    }
+    var kategoriList by remember { mutableStateOf<List<Kategori>>(emptyList()) }
 
     NavHost(
         navController = navController,
@@ -71,17 +64,21 @@ fun AppNavigation(navController: NavHostController) {
     ) {
 
         composable("home") {
-            DaftarPengeluaranScreen(navController, daftarKategori)
+            DaftarPengeluaranScreen(navController) { fetchedData ->
+                kategoriList = fetchedData
+            }
         }
 
         composable("detail/{nama}") { backStackEntry ->
-
             val nama = backStackEntry.arguments?.getString("nama")
-
-            val item = daftarKategori.find { it.nama == nama }
+            val item = kategoriList.find { it.nama == nama }
 
             if (item != null) {
                 DetailScreen(item, navController, true)
+            } else {
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Text("Data tidak ditemukan")
+                }
             }
         }
     }
@@ -90,119 +87,147 @@ fun AppNavigation(navController: NavHostController) {
 @Composable
 fun DaftarPengeluaranScreen(
     navController: NavController,
-    daftarKategori: MutableList<Kategori>
+    onDataLoaded: (List<Kategori>) -> Unit = {}
 ) {
+    var data by remember { mutableStateOf<List<Kategori>>(emptyList()) }
+    var anggaranData by remember { mutableStateOf<List<Anggaran>>(emptyList()) }
+    var isLoading by remember { mutableStateOf(true) }
+    var isError by remember { mutableStateOf(false) }
+
     val coroutineScope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
-    Box {
-        LazyColumn(
-            modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(bottom = 90.dp)
-        ){
-            item {
-                Text(
-                    text = "Pengeluaran",
-                    style = MaterialTheme.typography.titleLarge,
-                    modifier = Modifier.padding(16.dp, 16.dp, 16.dp, 5.dp)
-                )
 
-                Text(
-                    text = "Anggaran",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(16.dp, 6.dp)
-                )
+    LaunchedEffect(Unit) {
+        try {
+            val result = RetrofitClient.instance.getKategori()
 
-                LazyRow(
-                    horizontalArrangement = Arrangement.spacedBy(16.dp),
-                    contentPadding = PaddingValues(horizontal = 16.dp)
-                ) {
-                    items(KategoriSource.dummyAnggaran) { kategori ->
-                        AnggaranItem(kategori)
-                    }
-                }
+            data = result.kategori
+            anggaranData = result.anggaran
 
-                Spacer(modifier = Modifier.height(10.dp))
-            }
+            onDataLoaded(data)
 
-            val groupedData = daftarKategori.groupBy { it.Tanggal }
+            isLoading = false
+            isError = false
 
-            groupedData.forEach { (tanggal, listKategori) ->
-                item {
-                    HeaderColumn(
-                        tanggal = tanggal,
-                        total = 0
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                }
-
-                items(listKategori) { kategori ->
-                    KategoriItem(
-                        kategori,
-                        navController,
-                        onShowSnackbar = { message ->
-                            coroutineScope.launch {
-                                snackbarHostState.showSnackbar(message)
-                            }
-                        }
-                    )
-                    Spacer(modifier = Modifier.height(16.dp))
-                }
-
-                item {
-                    Spacer(modifier = Modifier.height(20.dp))
-                }
-            }
-        }
-
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .align(Alignment.BottomCenter)
-                .background(Color.White)
-                .padding(16.dp)
-        ) {
-
-            SnackbarHost(
-                hostState = snackbarHostState
-            )
+        } catch (e: Exception) {
+            isLoading = false
+            isError = true
         }
     }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color(0xFFF5F5F5))
+    ) {
+
+        when {
+            isLoading -> {
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator()
+                }
+            }
+
+            isError -> {
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Text("Gagal memuat data", color = Color.Red)
+                }
+            }
+
+            data.isEmpty() -> {
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Text("Belum ada data")
+                }
+            }
+
+            else -> {
+                LazyColumn(
+                    contentPadding = PaddingValues(bottom = 90.dp)
+                ) {
+
+                    item {
+                        Text(
+                            "Pengeluaran",
+                            style = MaterialTheme.typography.titleLarge,
+                            modifier = Modifier.padding(16.dp)
+                        )
+
+                        Text(
+                            "Anggaran",
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(horizontal = 16.dp)
+                        )
+
+                        LazyRow(
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            contentPadding = PaddingValues(16.dp)
+                        ) {
+                            items(anggaranData) {
+                                AnggaranItem(it)
+                            }
+                        }
+                    }
+
+                    val groupedData = data.groupBy { it.tanggal }
+
+                    groupedData.forEach { (tanggal, listKategori) ->
+
+                        item {
+                            HeaderColumn(
+                                tanggal,
+                                listKategori.sumOf { it.pengeluaran }
+                            )
+                        }
+
+                        items(listKategori) { kategori ->
+                            KategoriItem(
+                                kategori,
+                                navController
+                            ) { message ->
+                                coroutineScope.launch {
+                                    snackbarHostState.showSnackbar(message)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        SnackbarHost(
+            hostState = snackbarHostState,
+            modifier = Modifier.align(Alignment.BottomCenter)
+        )
+    }
 }
+
 
 
 @Composable
 fun AnggaranItem(anggaran: Anggaran) {
     Card(
-        modifier = Modifier.width(160.dp),
-        shape = RoundedCornerShape(12.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface
-        )
+        modifier = Modifier.width(150.dp),
+        shape = RoundedCornerShape(16.dp),
+        elevation = CardDefaults.cardElevation(6.dp)
     ) {
         Column {
-            Image(
-                painter = painterResource(id = anggaran.imageRes),
+
+            AsyncImage(
+                model = anggaran.imageUrl,
                 contentDescription = anggaran.nama,
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(80.dp),
-                contentScale = ContentScale.Inside
+                contentScale = ContentScale.Crop,
+                placeholder = painterResource(R.drawable.food),
+                error = painterResource(R.drawable.food)
             )
-            Column(modifier = Modifier.padding(8.dp)) {
+
+            Column(modifier = Modifier.padding(10.dp)) {
+                Text(anggaran.nama, fontWeight = FontWeight.Bold)
+                Text(anggaran.bulan)
                 Text(
-                    text = anggaran.nama,
-                    style = MaterialTheme.typography.bodyLarge,
-                    fontWeight = FontWeight.Bold
-                )
-                Text(
-                    text = anggaran.Bulan,
-                    style = MaterialTheme.typography.bodyMedium
-                )
-                Text(
-                    text = "Rp ${anggaran.sisa} / Rp ${anggaran.total}",
-                    style = MaterialTheme.typography.bodySmall,
+                    "Rp ${anggaran.sisa} / Rp ${anggaran.total}",
                     color = MaterialTheme.colorScheme.primary
                 )
             }
@@ -215,18 +240,11 @@ fun HeaderColumn(tanggal: String, total: Int) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 20.dp),
+            .padding(16.dp),
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
-        Text(
-            text = tanggal,
-            style = MaterialTheme.typography.titleMedium
-        )
-
-        Text(
-            text = "Pengeluaran: Rp $total",
-            style = MaterialTheme.typography.titleMedium
-        )
+        Text(tanggal, color = Color.Gray)
+        Text("Rp $total", fontWeight = FontWeight.Bold)
     }
 }
 
@@ -238,72 +256,59 @@ fun KategoriItem(
 ) {
     var isEdited by remember { mutableStateOf(false) }
     var isLoading by remember { mutableStateOf(false) }
-
-    val coroutineScope = rememberCoroutineScope()
+    val scope = rememberCoroutineScope()
 
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp),
-        shape = RoundedCornerShape(12.dp)
+            .padding(horizontal = 16.dp, vertical = 6.dp),
+        shape = RoundedCornerShape(16.dp),
+        elevation = CardDefaults.cardElevation(6.dp)
     ) {
 
-        Box {
-            Row(
+        Row(
+            modifier = Modifier
+                .padding(12.dp)
+                .clickable {
+                    navController.navigate("detail/${kategori.nama}")
+                },
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+
+            AsyncImage(
+                model = kategori.imageUrl,
+                contentDescription = kategori.nama,
                 modifier = Modifier
-                    .padding(12.dp)
-                    .clickable {
-                        navController.navigate("detail/${kategori.nama}")
-                    },
-                verticalAlignment = Alignment.CenterVertically
-            ) {
+                    .size(50.dp)
+                    .clip(RoundedCornerShape(12.dp)),
+                contentScale = ContentScale.Crop,
+                placeholder = painterResource(R.drawable.food),
+                error = painterResource(R.drawable.food)
+            )
 
-                Image(
-                    painter = painterResource(id = kategori.imageRes),
-                    contentDescription = kategori.nama,
-                    modifier = Modifier.size(60.dp)
-                )
+            Spacer(Modifier.width(12.dp))
 
-                Spacer(modifier = Modifier.width(12.dp))
+            Column(Modifier.weight(1f)) {
+                Text(kategori.nama, fontWeight = FontWeight.SemiBold)
+                Text("-Rp ${kategori.pengeluaran}", color = Color.Red)
+            }
 
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(kategori.nama)
-                    Text("-Rp ${kategori.Pengeluaran}")
+            IconButton(onClick = {
+                scope.launch {
+                    isLoading = true
+                    delay(800)
+                    isEdited = !isEdited
+                    onShowSnackbar("Mode edit ${if (isEdited) "aktif" else "mati"}")
+                    isLoading = false
                 }
-
-                IconButton(
-                    onClick = {
-                        coroutineScope.launch {
-                            isLoading = true
-                            delay(1000)
-
-                            isEdited = !isEdited
-
-                            onShowSnackbar(
-                                if (isEdited)
-                                    "Mode edit ${kategori.nama} aktif"
-                                else
-                                    "Mode edit dimatikan"
-                            )
-
-                            isLoading = false
-                        }
-                    }
-                ) {
-                    if (isLoading) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(18.dp),
-                            strokeWidth = 2.dp
-                        )
-                    } else {
-                        Icon(
-                            imageVector = if (isEdited)
-                                Icons.Filled.Edit
-                            else
-                                Icons.Outlined.Edit,
-                            contentDescription = "Edit"
-                        )
-                    }
+            }) {
+                if (isLoading) {
+                    CircularProgressIndicator(modifier = Modifier.size(18.dp))
+                } else {
+                    Icon(
+                        if (isEdited) Icons.Filled.Edit else Icons.Outlined.Edit,
+                        contentDescription = null
+                    )
                 }
             }
         }
@@ -321,15 +326,18 @@ fun DetailScreen(
 
     val coroutineScope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
+
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .padding(horizontal = 20.dp)
+            .background(Color(0xFFF5F5F5))
+            .padding(16.dp)
     ) {
 
         Card(
             modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(8.dp)
+            shape = RoundedCornerShape(16.dp),
+            elevation = CardDefaults.cardElevation(6.dp)
         ) {
 
             Column(
@@ -339,33 +347,36 @@ fun DetailScreen(
             ) {
 
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
 
-                    Image(
-                        painter = painterResource(id = kategori.imageRes),
+                    AsyncImage(
+                        model = kategori.imageUrl,
                         contentDescription = kategori.nama,
                         modifier = Modifier
-                            .width(60.dp)
-                            .height(60.dp),
-                        contentScale = ContentScale.Crop
+                            .size(60.dp)
+                            .clip(RoundedCornerShape(12.dp)),
+                        contentScale = ContentScale.Crop,
+                        placeholder = painterResource(R.drawable.food),
+                        error = painterResource(R.drawable.food)
                     )
+
+                    Spacer(modifier = Modifier.width(12.dp))
 
                     Column(
                         modifier = Modifier.weight(1f)
                     ) {
-
                         Text(
                             text = kategori.nama,
-                            style = MaterialTheme.typography.bodyLarge
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.SemiBold
                         )
 
                         Text(
-                            text = "-Rp ${kategori.Pengeluaran}",
+                            text = "-Rp ${kategori.pengeluaran}",
                             style = MaterialTheme.typography.bodyLarge,
-                            color = MaterialTheme.colorScheme.primary
+                            color = Color(0xFFE53935),
+                            fontWeight = FontWeight.Bold
                         )
                     }
 
@@ -373,15 +384,15 @@ fun DetailScreen(
                         onClick = {
                             coroutineScope.launch {
                                 isLoading = true
-                                delay(1500)
+                                delay(800)
 
                                 isEdited = !isEdited
 
                                 snackbarHostState.showSnackbar(
                                     if (isEdited)
-                                        "Mode edit aktif untuk ${kategori.nama}"
+                                        "Mode edit aktif"
                                     else
-                                        "Mode edit dimatikan"
+                                        "Mode edit mati"
                                 )
 
                                 isLoading = false
@@ -393,57 +404,54 @@ fun DetailScreen(
                                 Icons.Filled.Edit
                             else
                                 Icons.Outlined.Edit,
-                            contentDescription = "Edit Icon",
-                            tint = if (isEdited) Color.Black else Color.Gray
+                            contentDescription = "Edit"
                         )
                     }
+                }
 
-                    Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(20.dp))
 
-                    Button(
-                        onClick = {
-                            coroutineScope.launch {
-                                isLoading = true
-                                delay(1500)
+                Button(
+                    onClick = {
+                        coroutineScope.launch {
+                            isLoading = true
+                            delay(1000)
 
-                                snackbarHostState.showSnackbar(
-                                    "Pengeluaran ${kategori.nama} berhasil dicatat!"
-                                )
-
-                                isLoading = false
-                            }
-                        },
-                        modifier = Modifier.fillMaxWidth(),
-                        enabled = !isLoading
-                    ) {
-                        if (isLoading) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(20.dp),
-                                strokeWidth = 2.dp
+                            snackbarHostState.showSnackbar(
+                                "Berhasil disimpan!"
                             )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text("Menyimpan...")
-                        } else {
-                            Text("Simpan Pengeluaran")
+
+                            isLoading = false
                         }
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = !isLoading
+                ) {
+                    if (isLoading) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(18.dp),
+                            strokeWidth = 2.dp
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Menyimpan...")
+                    } else {
+                        Text("Simpan Pengeluaran")
                     }
+                }
 
-                    Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(8.dp))
 
-                    if (isFullScreen) {
-                        OutlinedButton(
-                            onClick = {
-                                navController.popBackStack()
-                            },
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Text("Kembali")
-                        }
+                if (isFullScreen) {
+                    OutlinedButton(
+                        onClick = { navController.popBackStack() },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Kembali")
                     }
                 }
             }
-
         }
+
         SnackbarHost(
             hostState = snackbarHostState,
             modifier = Modifier.align(Alignment.BottomCenter)
@@ -458,15 +466,9 @@ fun DaftarAnggaranScreenPreview() {
 
         val navController = rememberNavController()
 
-        val daftarKategori = remember {
-            mutableStateListOf<Kategori>().apply {
-                addAll(KategoriSource.dummyKategori)
-            }
-        }
-
         DaftarPengeluaranScreen(
-            navController,
-            daftarKategori
+            navController = navController,
+            onDataLoaded = {}
         )
     }
 }
