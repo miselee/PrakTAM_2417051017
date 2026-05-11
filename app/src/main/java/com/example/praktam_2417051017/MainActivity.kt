@@ -5,7 +5,6 @@ import android.os.Bundle
 import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -23,10 +22,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
@@ -34,12 +31,13 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
-import com.example.praktam_2417051017.model.Kategori
+import com.example.praktam_2417051017.data.model.Kategori
 import com.example.praktam_2417051017.ui.theme.PrakTAM_2417051017Theme
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import com.example.praktam_2417051017.network.RetrofitClient
-import model.Anggaran
+import com.example.praktam_2417051017.data.api.RetrofitClient
+import com.example.praktam_2417051017.data.model.Anggaran
+import com.example.praktam_2417051017.data.repository.KategoriRepository
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -97,24 +95,32 @@ fun DaftarPengeluaranScreen(
     val coroutineScope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
 
+    val repository = remember { KategoriRepository() }
+
     LaunchedEffect(Unit) {
+        isLoading = true
+
         try {
-            val result = RetrofitClient.instance.getKategori()
+            Log.d("DEBUG", "Mulai request API")
+
+            val result = repository.getKategori()
+
+            Log.d("DEBUG", "Request selesai")
 
             data = result.kategori
             anggaranData = result.anggaran
+            onDataLoaded(result.kategori)
 
-            onDataLoaded(data)
-
-            isLoading = false
-            isError = false
+            isError = result.kategori.isEmpty()
 
         } catch (e: Exception) {
-            isLoading = false
+            Log.e("API_ERROR", "Error: ${e.message}", e)
             isError = true
+        } finally {
+            Log.d("DEBUG", "Loading selesai")
+            isLoading = false
         }
     }
-
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -151,7 +157,6 @@ fun DaftarPengeluaranScreen(
                             style = MaterialTheme.typography.titleLarge,
                             modifier = Modifier.padding(16.dp)
                         )
-
                         Text(
                             "Anggaran",
                             fontWeight = FontWeight.Bold,
